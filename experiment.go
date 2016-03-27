@@ -34,8 +34,6 @@ func NewExperiment(data []int, identifiers []string, sortOrder []string) Experim
 		e = append(e, s)
 	}
 
-	e.Sort(sortOrder)
-
 	return e
 
 }
