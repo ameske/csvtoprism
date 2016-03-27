@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"strings"
@@ -13,15 +14,50 @@ func main() {
 	filename := flag.String("f", "", "file to parse")
 	flag.Parse()
 
-	fd, err := os.Open(*filename)
+	inputFD, err := os.Open(*filename)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer inputFD.Close()
+
+	data, identifiers, err := parseInputData(inputFD)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	data := make([]int, 96)
-	identifiers := make([]string, 32)
+	e := NewExperiment(data, identifiers)
+	fmt.Println(e)
 
-	scanner := bufio.NewScanner(fd)
+	me := NewAdjustedExperiment(e)
+
+	rawFD, err := os.Create("raw.csv")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rawFD.Close()
+
+	err = e.WriteCSV(rawFD)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	adjFD, err := os.Create("adjusted.csv")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer adjFD.Close()
+
+	err = me.WriteCSV(adjFD)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func parseInputData(r io.Reader) (data []int, identifiers []string, err error) {
+	data = make([]int, 96)
+	identifiers = make([]string, 32)
+
+	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		line := scanner.Text()
 
@@ -42,39 +78,11 @@ func main() {
 			continue
 		}
 	}
-	fd.Close()
-
-	e := NewExperiment(data, identifiers)
-	fmt.Println(e)
-
-	me := NewAdjustedExperiment(e)
-
-	fd, err = os.Create("raw.csv")
-	if err != nil {
-		log.Fatal(err)
-	}
-	err = e.WriteCSV(fd)
-	if err != nil {
-		log.Fatal(err)
-	}
-	err = fd.Close()
-	if err != nil {
-		log.Fatal(err)
+	if err := scanner.Err(); err != nil {
+		return nil, nil, err
 	}
 
-	fd, err = os.Create("adjusted.csv")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = me.WriteCSV(fd)
-	if err != nil {
-		log.Fatal(err)
-	}
-	err = fd.Close()
-	if err != nil {
-		log.Fatal(err)
-	}
+	return data, identifiers, nil
 }
 
 func dumpDataTable(data []int) {
