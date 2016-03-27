@@ -26,7 +26,6 @@ func main() {
 	}
 
 	e := NewExperiment(data, identifiers, sortOrder)
-	fmt.Println(e)
 
 	me := NewAdjustedExperiment(e)
 

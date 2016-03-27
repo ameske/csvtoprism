@@ -46,16 +46,14 @@ func NewAdjustedExperiment(e Experiment) Experiment {
 		log.Fatal(err)
 	}
 
-	mean := float64((c.Data[0] + c.Data[1] + c.Data[2])) / 3.0
-
-	log.Println(mean)
+	mean := (c.Data[0] + c.Data[1] + c.Data[2]) / 3
 
 	var adjusted Experiment
 	for i, _ := range e {
 		var s Sample
 		s.Name = e[i].Name
 		for j := 0; j < 3; j++ {
-			s.Data[j] = int(float64(e[i].Data[j]) - mean)
+			s.Data[j] = e[i].Data[j] - mean
 		}
 		adjusted = append(adjusted, s)
 	}
