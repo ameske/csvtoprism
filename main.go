@@ -20,12 +20,12 @@ func main() {
 	}
 	defer inputFD.Close()
 
-	data, identifiers, err := parseInputData(inputFD)
+	data, identifiers, sortOrder, err := parseInputData(inputFD)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	e := NewExperiment(data, identifiers)
+	e := NewExperiment(data, identifiers, sortOrder)
 	fmt.Println(e)
 
 	me := NewAdjustedExperiment(e)
@@ -53,7 +53,7 @@ func main() {
 	}
 }
 
-func parseInputData(r io.Reader) (data []int, identifiers []string, err error) {
+func parseInputData(r io.Reader) (data []int, identifiers []string, sortOrder []string, err error) {
 	data = make([]int, 96)
 	identifiers = make([]string, 32)
 
@@ -74,15 +74,17 @@ func parseInputData(r io.Reader) (data []int, identifiers []string, err error) {
 			for i, id := range parsedIdentifiers {
 				identifiers[row*4+i] = id
 			}
+		case SortOrder:
+			sortOrder = parseSortOrderRow(cells)
 		default:
 			continue
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	return data, identifiers, nil
+	return data, identifiers, sortOrder, nil
 }
 
 func dumpDataTable(data []int) {

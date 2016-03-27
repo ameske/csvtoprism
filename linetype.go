@@ -13,6 +13,7 @@ type LineType int
 const (
 	Data LineType = iota
 	Identifiers
+	SortOrder
 	Discard
 )
 
@@ -23,6 +24,10 @@ func determineLineType(cells []string) LineType {
 
 	if isIdentifierLine(cells) {
 		return Identifiers
+	}
+
+	if isSortOrder(cells) {
+		return SortOrder
 	}
 
 	// If it isn't one of the following lines we can just ditch it
@@ -86,13 +91,13 @@ func isIdentifierLine(cells []string) bool {
 
 }
 
-func isRowIdentifier(s string) bool {
-	if len(s) == 0 {
+// A sort order line starts with the string "Sort" and is followed by the sort order
+func isSortOrder(cells []string) bool {
+	if len(cells) == 0 {
 		return false
-
 	}
 
-	if int(s[0]) >= 64 && int(s[0]) <= 72 {
+	if strings.ToLower(cells[0]) == "sort" {
 		return true
 	}
 
@@ -160,4 +165,22 @@ func parseIdentifierRow(cells []string) ([]string, int) {
 	}
 
 	return data, rowMapping[identifier]
+}
+
+// TODO - Implement after determining how to specify sort order
+func parseSortOrderRow(cells []string) []string {
+	return nil
+}
+
+func isRowIdentifier(s string) bool {
+	if len(s) == 0 {
+		return false
+
+	}
+
+	if int(s[0]) >= 64 && int(s[0]) <= 72 {
+		return true
+	}
+
+	return false
 }

@@ -19,7 +19,7 @@ type Sample struct {
 
 type Experiment []Sample
 
-func NewExperiment(data []int, identifiers []string) Experiment {
+func NewExperiment(data []int, identifiers []string, sortOrder []string) Experiment {
 	var e Experiment
 
 	dCount := 0
@@ -33,6 +33,8 @@ func NewExperiment(data []int, identifiers []string) Experiment {
 		}
 		e = append(e, s)
 	}
+
+	e.Sort(sortOrder)
 
 	return e
 
@@ -77,22 +79,42 @@ func (e Experiment) Control() (s Sample, err error) {
 	return s, errors.New("no control found")
 }
 
-// Sort moves the negative control samples to the front
-func (e Experiment) Sort() {
-	control := -1
-	for i, s := range e {
-		if strings.Contains(strings.ToLower(s.Name), "unpulsed") {
-			control = i
-			break
+// Sort re-arranges the samples based on a given sort order
+func (e Experiment) Sort(order []string) error {
+	if len(e) != len(order) {
+		return errors.New("sort order is not complete")
+	}
+
+	for _, s := range e {
+		found := false
+		for _, o := range order {
+			if s.Name == o {
+				found = true
+				break
+			}
+
+			if !found {
+				return errors.New("sort order missing experiment identifier")
+			}
 		}
 	}
 
-	if control != -1 {
-		var tmp Sample
-		tmp = e[0]
-		e[0] = e[control]
-		e[control] = tmp
+	// Use an in-place insertion sort to rearrange the experiments
+	var tmp Sample
+	for i, o := range order {
+		idx := -1
+		for j, s := range e {
+			if s.Name == o {
+				idx = j
+			}
+		}
+
+		tmp = e[i]
+		e[i] = e[idx]
+		e[idx] = tmp
 	}
+
+	return nil
 }
 
 func (e Experiment) String() string {
