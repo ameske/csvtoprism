@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -47,16 +46,35 @@ func NewAdjustedExperiment(e Experiment) Experiment {
 
 	mean := float64((c.Data[0] + c.Data[1] + c.Data[2])) / 3.0
 
+	log.Println(mean)
+
 	var adjusted Experiment
 	for i, _ := range e {
 		var s Sample
 		s.Name = e[i].Name
 		for j := 0; j < 3; j++ {
-			s.Data[j] = int(math.Floor(float64(e[i].Data[j]) - mean))
+			s.Data[j] = int(float64(e[i].Data[j]) - mean)
 		}
+		adjusted = append(adjusted, s)
 	}
 
 	return adjusted
+}
+
+func (e Experiment) Control() (s Sample, err error) {
+	control := -1
+	for i, s := range e {
+		if strings.Contains(strings.ToLower(s.Name), "unpulsed") {
+			control = i
+			break
+		}
+	}
+
+	if control != -1 {
+		return e[control], nil
+	}
+
+	return s, errors.New("no control found")
 }
 
 // Sort moves the negative control samples to the front
@@ -99,22 +117,6 @@ func (e Experiment) String() string {
 	w.Flush()
 
 	return b.String()
-}
-
-func (e Experiment) Control() (s Sample, err error) {
-	control := -1
-	for i, s := range e {
-		if strings.Contains(strings.ToLower(s.Name), "unpulsed") {
-			control = i
-			break
-		}
-	}
-
-	if control != -1 {
-		return e[control], nil
-	}
-
-	return s, errors.New("no control found")
 }
 
 func (e Experiment) WriteCSV(w io.Writer) error {
