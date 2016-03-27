@@ -1,0 +1,21 @@
+csvtoprism takes a CSV representation of the results from an assay and converts them to a format for Prism 6.
+
+# Input Format
+
+csvtoprism does not expect a rigid input format file. Rather it looks for 8 data lines and 8 identifier lines.
+
+A data line has the following structure, where "A" - "H" represents the literal string "A" - "H" and Data Point is an integer.
+
+```
+<["A"-"H"]>,<Data Point>,<Data Point>,<Data Point>,<Data Point>,<Data Point>,<Data Point>,<Data Point>,<Data Point>,<Data Point>,<Data Point>,<Data Point>,<Data Point>
+```
+
+An identifier line has the following structure. There may be empty "cells" in the line. csvtoprism will discard those and grab the first 4 non-empty strings.
+
+```
+<["A"-"H"]>,<Identifier>,<Identifier>,<Identifier>,<Identifier>
+```
+
+# Output Format
+
+Prism 6 takes in data in column format, where the identifiers are on the top row and the data associated with the identifiers are in columns.
