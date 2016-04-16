@@ -1,12 +1,55 @@
 package main
 
 import (
+	"bufio"
+	"fmt"
+	"io"
 	"log"
 	"strconv"
 	"strings"
 )
 
-var rowMapping = map[string]int{"A": 0, "B": 1, "C": 2, "D": 3, "E": 4, "F": 5, "G": 6, "H": 7}
+var (
+	rowMapping = map[string]int{"A": 0, "B": 1, "C": 2, "D": 3, "E": 4, "F": 5, "G": 6, "H": 7}
+)
+
+func parseInputData(r io.Reader) (data []int, identifiers []string, sortOrder []int, err error) {
+	data = make([]int, 96)
+	identifiers = make([]string, 32)
+
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		cells := strings.Split(line, ",")
+
+		switch determineLineType(cells) {
+		case Data:
+			parsedData, row := parseDataRow(cells)
+			for i, d := range parsedData {
+				data[row*12+i] = d
+			}
+		case Identifiers:
+			parsedIdentifiers, row := parseIdentifierRow(cells)
+			for i, id := range parsedIdentifiers {
+				identifiers[row*4+i] = id
+			}
+		case SortOrder:
+			var err error
+			sortOrder, err = parseSortOrderRow(cells)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+		default:
+			continue
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, nil, nil, err
+	}
+
+	return data, identifiers, sortOrder, nil
+}
 
 type LineType int
 
@@ -167,15 +210,34 @@ func parseIdentifierRow(cells []string) ([]string, int) {
 	return data, rowMapping[identifier]
 }
 
-// TODO - Implement after determining how to specify sort order
-func parseSortOrderRow(cells []string) []string {
-	return nil
+// A sort order row has "Sort" in the first cell and the order in the second cell.
+// The order is a list of number delimited by '-'
+func parseSortOrderRow(cells []string) ([]int, error) {
+	sortOrder := cells[1]
+
+	idents := strings.Split(sortOrder, "-")
+
+	order := make([]int, 0, len(idents))
+
+	for _, ident := range idents {
+		i, err := strconv.ParseInt(ident, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+
+		if i < 1 || i > 32 {
+			return nil, fmt.Errorf("invalid identifier index [%d] - index must be between 1-32", i)
+		}
+
+		order = append(order, int(i))
+	}
+
+	return order, nil
 }
 
 func isRowIdentifier(s string) bool {
 	if len(s) == 0 {
 		return false
-
 	}
 
 	if int(s[0]) >= 64 && int(s[0]) <= 72 {

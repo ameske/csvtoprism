@@ -1,13 +1,10 @@
 package main
 
 import (
-	"bufio"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"os"
-	"strings"
 )
 
 func main() {
@@ -20,12 +17,12 @@ func main() {
 	}
 	defer inputFD.Close()
 
-	data, identifiers, sortOrder, err := parseInputData(inputFD)
+	fmt.Printf("Input File: %s\n", *filename)
+
+	e, err := NewExperiment(inputFD)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	e := NewExperiment(data, identifiers, sortOrder)
 
 	me := NewAdjustedExperiment(e)
 
@@ -50,40 +47,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-}
 
-func parseInputData(r io.Reader) (data []int, identifiers []string, sortOrder []string, err error) {
-	data = make([]int, 96)
-	identifiers = make([]string, 32)
-
-	scanner := bufio.NewScanner(r)
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		cells := strings.Split(line, ",")
-
-		switch determineLineType(cells) {
-		case Data:
-			parsedData, row := parseDataRow(cells)
-			for i, d := range parsedData {
-				data[row*12+i] = d
-			}
-		case Identifiers:
-			parsedIdentifiers, row := parseIdentifierRow(cells)
-			for i, id := range parsedIdentifiers {
-				identifiers[row*4+i] = id
-			}
-		case SortOrder:
-			sortOrder = parseSortOrderRow(cells)
-		default:
-			continue
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, nil, nil, err
-	}
-
-	return data, identifiers, sortOrder, nil
+	fmt.Println("Succesfully generated raw and adjusted data sets.")
 }
 
 func dumpDataTable(data []int) {

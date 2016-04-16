@@ -19,7 +19,19 @@ type Sample struct {
 
 type Experiment []Sample
 
-func NewExperiment(data []int, identifiers []string, sortOrder []string) Experiment {
+// NewExperiment constructs a new Experiement using data provided by the given io.Reader
+func NewExperiment(r io.Reader) (Experiment, error) {
+	data, identifiers, sortOrder, err := parseInputData(r)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewExperimentFromRawData(data, identifiers, sortOrder), nil
+}
+
+// NewExperimentFromRawData takes slice representations of the various parts of an experiment and
+// returns an Experiment struct.
+func NewExperimentFromRawData(data []int, identifiers []string, sortOrder []int) Experiment {
 	var e Experiment
 
 	dCount := 0
@@ -34,10 +46,30 @@ func NewExperiment(data []int, identifiers []string, sortOrder []string) Experim
 		e = append(e, s)
 	}
 
-	return e
+	if len(sortOrder) != 0 {
+		fmt.Println("Sort order specified.")
+		err := e.Sort(sortOrder)
+		if err != nil {
+			log.Fatal(err)
+		}
 
+		fmt.Printf("New Order: ")
+		for i, s := range e {
+			if i+1 == len(e) {
+				fmt.Printf("%s\n", s.Name)
+			} else {
+				fmt.Printf("%s, ", s.Name)
+			}
+		}
+	} else {
+		fmt.Println("No sort order specified. Retaining original order of identifiers.")
+	}
+
+	return e
 }
 
+// NewAdjustedExperiment returns a new experiment where the data points are all adjusted
+// by the control of the provided experiment.
 func NewAdjustedExperiment(e Experiment) Experiment {
 	c, err := e.Control()
 	if err != nil {
@@ -59,6 +91,19 @@ func NewAdjustedExperiment(e Experiment) Experiment {
 	return adjusted
 }
 
+// Copy returns a duplicate of the given experiment.
+func (e Experiment) Copy() Experiment {
+	copy := make([]Sample, 0, len(e))
+
+	for _, s := range e {
+		copy = append(copy, s)
+	}
+
+	return copy
+}
+
+// Control returns the sample specified by the name "unpulsed". This sample is used
+// to calculate an adjusted experiment.
 func (e Experiment) Control() (s Sample, err error) {
 	control := -1
 	for i, s := range e {
@@ -75,44 +120,42 @@ func (e Experiment) Control() (s Sample, err error) {
 	return s, errors.New("no control found")
 }
 
-// Sort re-arranges the samples based on a given sort order
-func (e Experiment) Sort(order []string) error {
-	if len(e) != len(order) {
-		return errors.New("sort order is not complete")
-	}
+// Identifiers returns the list of identifiers contained in the experiment
+func (e Experiment) Identifiers() []string {
+	idents := make([]string, 0, len(e))
 
 	for _, s := range e {
-		found := false
-		for _, o := range order {
-			if s.Name == o {
-				found = true
-				break
-			}
-
-			if !found {
-				return errors.New("sort order missing experiment identifier")
-			}
-		}
+		idents = append(idents, s.Name)
 	}
 
-	// Use an in-place insertion sort to rearrange the experiments
-	var tmp Sample
+	return idents
+}
+
+// Sort re-arranges the samples based on a given sort order, specified by a list
+// of integers representing an identifiers index
+func (e Experiment) Sort(order []int) error {
+	if len(e) != len(order) {
+		return fmt.Errorf("experiment contains %d identifiers, but sort order contains %d", len(e), len(order))
+	}
+
+	original := e.Copy()
+
 	for i, o := range order {
-		idx := -1
-		for j, s := range e {
-			if s.Name == o {
-				idx = j
-			}
+		if o-1 < 0 || o > len(e) {
+			return fmt.Errorf("invalid identifier index [%d] - index must be between 1-32", o)
 		}
 
-		tmp = e[i]
-		e[i] = e[idx]
-		e[idx] = tmp
+		var tmp Sample
+
+		tmp = original[i]
+		e[i] = original[o-1]
+		e[o-1] = tmp
 	}
 
 	return nil
 }
 
+// String "pretty-prints" the experiement
 func (e Experiment) String() string {
 	var b bytes.Buffer
 	w := new(tabwriter.Writer)
@@ -137,6 +180,8 @@ func (e Experiment) String() string {
 	return b.String()
 }
 
+// WriteCSV dumps the experiment in CSV format suitable for import into Prism using the
+// provided io.Writer
 func (e Experiment) WriteCSV(w io.Writer) error {
 	outputFormat := make([][]string, 4)
 	outputFormat[0] = make([]string, 32)
