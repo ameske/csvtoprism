@@ -1,4 +1,4 @@
-package main
+package csvtoprism
 
 import (
 	"bufio"
