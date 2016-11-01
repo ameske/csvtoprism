@@ -21,6 +21,8 @@ func main() {
 
 	fmt.Printf("Input File: %s\n", *filename)
 
+	filePart := strings.Split(*filename, ".")[0]
+
 	err := generateCSVFromXLSXFile(*filename, 0, &csv)
 	if err != nil {
 		log.Fatal(err)
@@ -33,7 +35,7 @@ func main() {
 
 	me := NewAdjustedExperiment(e)
 
-	rawFD, err := os.Create("raw.csv")
+	rawFD, err := os.Create(fmt.Sprintf(filePart + "_Raw.csv"))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -44,7 +46,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	adjFD, err := os.Create("adjusted.csv")
+	adjFD, err := os.Create(fmt.Sprintf(filePart + "_Adjusted.csv"))
 	if err != nil {
 		log.Fatal(err)
 	}
