@@ -6,178 +6,98 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"strconv"
 	"strings"
-	"text/tabwriter"
+
+	"github.com/tealeg/xlsx"
 )
 
-type Sample struct {
-	Name string
-	Data [3]int
+// A RawSample is a set of data points associated with some identifier
+type RawSample struct {
+	Name string `json:"name"`
+	Data [3]int `json:"data"`
 }
 
-type Experiment []Sample
+// ParseRawSamplesXLS constructs a set of RawSamples from the given filename.
+// It is epxected that the stream provided by the io.ReaderAt is in the format of an XLS file.
+func ParseRawSamplesXLS(r io.ReaderAt, size int64) ([]RawSample, error) {
+	var buf bytes.Buffer
 
-// NewExperiment constructs a new Experiement using data provided by the given io.Reader
-func NewExperiment(r io.Reader) (Experiment, error) {
-	data, identifiers, sortOrder, err := parseInputData(r)
+	err := generateCSVFromXLSXReader(r, size, 0, &buf)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewExperimentFromRawData(data, identifiers, sortOrder), nil
+	return ParseRawSamplesCSV(&buf)
 }
 
-// NewExperimentFromRawData takes slice representations of the various parts of an experiment and
-// returns an Experiment struct.
-func NewExperimentFromRawData(data []int, identifiers []string, sortOrder []int) Experiment {
-	var e Experiment
-
-	dCount := 0
-
-	for _, identifier := range identifiers {
-		var s Sample
-		s.Name = identifier
-		for j := 0; j < 3; j++ {
-			s.Data[j] = data[dCount]
-			dCount++
-		}
-		e = append(e, s)
-	}
-
-	if len(sortOrder) != 0 {
-		fmt.Println("Sort order specified.")
-		err := e.Sort(sortOrder)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		fmt.Printf("New Order: ")
-		for i, s := range e {
-			if i+1 == len(e) {
-				fmt.Printf("%s\n", s.Name)
-			} else {
-				fmt.Printf("%s, ", s.Name)
-			}
-		}
-	} else {
-		fmt.Println("No sort order specified. Retaining original order of identifiers.")
-	}
-
-	return e
-}
-
-// NewAdjustedExperiment returns a new experiment where the data points are all adjusted
-// by the control of the provided experiment.
-func NewAdjustedExperiment(e Experiment) Experiment {
-	c, err := e.Control()
+// ParseRawSamplesCSV constructs a set of RawSamples using data provided by the given io.Reader.
+// It is expected that the stream provided by the io.Reader is in the format of a CSV file.
+func ParseRawSamplesCSV(r io.Reader) ([]RawSample, error) {
+	data, identifiers, err := parseInputData(r)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
-	mean := (c.Data[0] + c.Data[1] + c.Data[2]) / 3
+	return parseRawSamplesFromRawData(data, identifiers)
+}
 
-	var adjusted Experiment
-	for i, _ := range e {
-		var s Sample
-		s.Name = e[i].Name
-		for j := 0; j < 3; j++ {
-			s.Data[j] = e[i].Data[j] - mean
-		}
-		adjusted = append(adjusted, s)
+// Adjust returns a new RawSample with the data points adjusted by the
+// provided mean
+func (r RawSample) Adjust(mean int) RawSample {
+	var adjusted RawSample
+
+	adjusted.Name = r.Name
+
+	for i := 0; i < 3; i++ {
+		adjusted.Data[i] = r.Data[i] - mean
 	}
 
 	return adjusted
 }
 
-// Copy returns a duplicate of the given experiment.
-func (e Experiment) Copy() Experiment {
-	copy := make([]Sample, 0, len(e))
-
-	for _, s := range e {
-		copy = append(copy, s)
-	}
-
-	return copy
+// A ControlledSample is a set of RawSamples associated with a particular RawSample
+// that represents the control group.
+type ControlledSample struct {
+	Control      RawSample   `json:"control"`
+	Experimental []RawSample `json:"experimental"`
 }
 
-// Control returns the sample specified by the name "unpulsed". This sample is used
-// to calculate an adjusted experiment.
-func (e Experiment) Control() (s Sample, err error) {
-	control := -1
-	for i, s := range e {
-		if strings.Contains(strings.ToLower(s.Name), "unpulsed") {
-			control = i
-			break
-		}
+// Adjust returns a new ControlledSample where all of the data points
+// are adjusted by the mean of the Control's data points.
+func (c ControlledSample) Adjust() ControlledSample {
+	var adjusted ControlledSample
+
+	mean := (c.Control.Data[0] + c.Control.Data[1] + c.Control.Data[2]) / 3
+
+	adjusted.Control = c.Control.Adjust(mean)
+
+	for _, e := range c.Experimental {
+		adjusted.Experimental = append(adjusted.Experimental, e.Adjust(mean))
 	}
 
-	if control != -1 {
-		return e[control], nil
-	}
-
-	return s, errors.New("no control found")
+	return adjusted
 }
 
-// Identifiers returns the list of identifiers contained in the experiment
-func (e Experiment) Identifiers() []string {
-	idents := make([]string, 0, len(e))
-
-	for _, s := range e {
-		idents = append(idents, s.Name)
-	}
-
-	return idents
+// An Experiment consists of a name, generally representing the donor source,
+// and a set of ControlledSamples.
+type Experiment struct {
+	Name    string             `json:"name"`
+	Samples []ControlledSample `json:"samples"`
 }
 
-// Sort re-arranges the samples based on a given sort order, specified by a list
-// of integers representing an identifiers index
-func (e Experiment) Sort(order []int) error {
-	if len(e) != len(order) {
-		return fmt.Errorf("experiment contains %d identifiers, but sort order contains %d", len(e), len(order))
+// Adjusted produces a new Experiment where all of the samples have had their data
+// points adjusted by the mean of their control.
+func (e Experiment) Adjusted() Experiment {
+	var adjusted Experiment
+
+	adjusted.Name = fmt.Sprintf("%s_Adjusted", e.Name)
+
+	for _, s := range e.Samples {
+		adjusted.Samples = append(adjusted.Samples, s.Adjust())
 	}
 
-	original := e.Copy()
-
-	for i, o := range order {
-		if o-1 < 0 || o > len(e) {
-			return fmt.Errorf("invalid identifier index [%d] - index must be between 1-32", o)
-		}
-
-		var tmp Sample
-
-		tmp = original[i]
-		e[i] = original[o-1]
-		e[o-1] = tmp
-	}
-
-	return nil
-}
-
-// String "pretty-prints" the experiement
-func (e Experiment) String() string {
-	var b bytes.Buffer
-	w := new(tabwriter.Writer)
-
-	// Format in tab-separated columns with a tab stop of 8.
-	w.Init(&b, 0, 8, 0, '\t', 0)
-
-	for i := 0; i < len(e); i++ {
-		fmt.Fprintf(w, "%s\t", e[i].Name)
-	}
-	fmt.Fprintf(w, "\n")
-
-	for i := 0; i < 3; i++ {
-		for j := 0; j < len(e); j++ {
-			fmt.Fprintf(w, "%d\t", e[j].Data[i])
-		}
-		fmt.Fprintf(w, "\n")
-	}
-
-	w.Flush()
-
-	return b.String()
+	return adjusted
 }
 
 // WriteCSV dumps the experiment in CSV format suitable for import into Prism using the
@@ -190,12 +110,22 @@ func (e Experiment) WriteCSV(w io.Writer) error {
 	outputFormat[3] = make([]string, 32)
 
 	col := 0
-	for _, s := range e {
-		outputFormat[0][col] = s.Name
-		outputFormat[1][col] = strconv.Itoa(s.Data[0])
-		outputFormat[2][col] = strconv.Itoa(s.Data[1])
-		outputFormat[3][col] = strconv.Itoa(s.Data[2])
+	for _, sample := range e.Samples {
+		// First write the control
+		outputFormat[0][col] = sample.Control.Name
+		outputFormat[1][col] = strconv.Itoa(sample.Control.Data[0])
+		outputFormat[2][col] = strconv.Itoa(sample.Control.Data[1])
+		outputFormat[3][col] = strconv.Itoa(sample.Control.Data[2])
 		col++
+
+		// Now write the data poitns
+		for _, s := range sample.Experimental {
+			outputFormat[0][col] = s.Name
+			outputFormat[1][col] = strconv.Itoa(s.Data[0])
+			outputFormat[2][col] = strconv.Itoa(s.Data[1])
+			outputFormat[3][col] = strconv.Itoa(s.Data[2])
+			col++
+		}
 	}
 
 	cw := csv.NewWriter(w)
@@ -207,5 +137,72 @@ func (e Experiment) WriteCSV(w io.Writer) error {
 
 	cw.Flush()
 
+	return nil
+}
+
+// ParseRawSamplesFromRawData takes flat slice representations of the data and
+// sample identifiers and joins them together.
+func parseRawSamplesFromRawData(data []int, identifiers []string) ([]RawSample, error) {
+	if len(data)%3 != 0 {
+		return nil, errors.New("must have a multiple of 3 data points")
+	}
+
+	samples := make([]RawSample, 0)
+
+	dCount := 0
+
+	for _, identifier := range identifiers {
+		var s RawSample
+		s.Name = identifier
+		for j := 0; j < 3; j++ {
+			s.Data[j] = data[dCount]
+			dCount++
+		}
+		samples = append(samples, s)
+	}
+
+	return samples, nil
+}
+
+func generateCSVFromXLSXReader(r io.ReaderAt, size int64, sheetIndex int, w io.Writer) error {
+	xlFile, err := xlsx.OpenReaderAt(r, size)
+	if err != nil {
+		return err
+	}
+
+	return generateCSV(xlFile, sheetIndex, w)
+}
+
+func generateCSVFromXLSXFile(excelFileName string, sheetIndex int, w io.Writer) error {
+	xlFile, err := xlsx.OpenFile(excelFileName)
+	if err != nil {
+		return err
+	}
+
+	return generateCSV(xlFile, sheetIndex, w)
+}
+
+func generateCSV(f *xlsx.File, sheetIndex int, w io.Writer) error {
+	sheetLen := len(f.Sheets)
+	switch {
+	case sheetLen == 0:
+		return errors.New("This XLSX file contains no sheets.")
+	case sheetIndex >= sheetLen:
+		return fmt.Errorf("No sheet %d available, please select a sheet between 0 and %d\n", sheetIndex, sheetLen-1)
+	}
+	sheet := f.Sheets[sheetIndex]
+	for _, row := range sheet.Rows {
+		var vals []string
+		if row != nil {
+			for _, cell := range row.Cells {
+				str, err := cell.String()
+				if err != nil {
+					vals = append(vals, err.Error())
+				}
+				vals = append(vals, fmt.Sprintf("%s", str))
+			}
+			fmt.Fprintf(w, strings.Join(vals, ",")+"\n")
+		}
+	}
 	return nil
 }
