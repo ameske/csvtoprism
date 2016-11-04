@@ -75,6 +75,7 @@ func CreateCSV(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&exp)
 	if err != nil {
+		log.Println(err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -99,11 +100,15 @@ func CreateCSV(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Println("Created: " + exp.Name + ".csv")
+
 	err = adjusted.WriteCSV(adjustedFD)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	log.Println("Created: " + adjusted.Name + ".csv")
 
 	w.Write([]byte("Your experiements have been succesfully converted to CSV. Please check your home directory\n"))
 }

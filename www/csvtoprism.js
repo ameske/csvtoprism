@@ -1,38 +1,49 @@
-contentContainer = null;
 sampleGroups = [];
 experiment = {};
 adjustedExperiment = [];
 
-$(document).ready(function() {
-  contentContainer = document.getElementById("content")
-  $("#xlsfileform").submit(function(e) {
-    e.preventDefault();
+function resetInterface() {
+  content = document.getElementById("content");
+  if (content.hasChildNodes()) {
+    while(content.childNodes.length > 1) {
+      content.removeChild(content.lastChild);
+    }
+  }
 
-    var data = new FormData(this);
+  sampleGroups = [];
+  experiment = {};
+  adjustedExperiment = [];
+}
 
-    $.ajax({
-      url: "http://localhost:41586/upload",
-      data: data,
-      cache: false,
-      contentType: false,
-      processData: false,
-      dataType: "json",
-      type: "POST",
-      success: function(data) {
-        experiment = data;
-        createAssociationMenu(experiment);
+function submitXLSFile() {
+  var r = new XMLHttpRequest();
+
+  var file = document.getElementById("xlsfile").files[0];
+  
+  var formData = new FormData();
+  formData.append("xlsfile", file);
+
+  r.open("POST", "http://localhost:41586/upload", true);
+  r.onreadystatechange = function() {
+      if (r.readyState == XMLHttpRequest.DONE) {
+        if (r.status != 200) {
+          alert("Something Went Wrong: " + r.responseText);
+          return;
+        }
+        var response = JSON.parse(r.responseText);
+        createAssociationMenu(response);
       }
-    });
-
-    return true;
-  });
-});
+  };
+  r.send(formData);
+}
 
 function createAssociationMenu(data) {
   resetInterface();
 
+  experiment = data;
+
   var sampleSelector = document.createElement("SELECT");
-  sampleSelector.setAttribute("id", "sampleGroupSelect");
+  sampleSelector.setAttribute("id", "availableSamples");
 
   for (let sample of data.experiment) {
     var o = document.createElement("OPTION");
@@ -53,20 +64,21 @@ function createAssociationMenu(data) {
   submitExperimentButton.innerHTML = "Submit Experiment";
   submitExperimentButton.addEventListener("click", submitExperiment);
 
-  contentContainer.appendChild(sampleSelector);
-  contentContainer.appendChild(addSampleGroupButton);
-  contentContainer.appendChild(submitExperimentButton);
+  var content = document.getElementById("content");
+  content.appendChild(sampleSelector);
+  content.appendChild(addSampleGroupButton);
+  content.appendChild(submitExperimentButton);
 }
 
 function createNewSampleGroup() {
-    s = document.getElementById("sampleGroupSelect");
+    var s = document.getElementById("availableSamples");
 
-    control = s.options[s.selectedIndex];
+    var control = s.options[s.selectedIndex];
 
     // Remove the newly selected control from all sample groups;
     s.remove(control);
-    for (let s of sampleGroups) {
-      removeSampleByName(s, control.value);
+    for (let sg of sampleGroups) {
+      removeSampleByName(sg, control.value);
     }
 
     // Create the HTML Objects representing the new sample group
@@ -74,15 +86,14 @@ function createNewSampleGroup() {
 }
 
 function createNewSampleGroupHTML(control, remainingSamples) {
-    d = document.createElement("DIV");
+    var d = document.createElement("DIV");
     d.setAttribute("id", control);
 
-    l = document.createElement("LABEL");
+    var l = document.createElement("LABEL");
     l.innerHTML = control + ":";
 
-
     // Create this sample groups select options
-    sampleGroupSelect = document.createElement("SELECT");
+    var sampleGroupSelect = document.createElement("SELECT");
     sampleGroupSelect.setAttribute("id", control + "_select");
     for(i = 0; i < remainingSamples.length; i++) {
       var o = document.createElement("OPTION");
@@ -94,18 +105,18 @@ function createNewSampleGroupHTML(control, remainingSamples) {
     // Add the new sample group to our in memory representation
     sampleGroups.push(sampleGroupSelect);
 
-    addSample = document.createElement("BUTTON");
+    var addSample = document.createElement("BUTTON");
     addSample.innerHTML = "Add Sample To Group";
     addSample.addEventListener("click", function(){
       // Get the select box containing the sample we wish to add
-      s = document.getElementById(control+"_select");
+      var s = document.getElementById(control+"_select");
       sample = s.options[s.selectedIndex].value;
 
       // Find the list for this sample group
-      list = document.getElementById(control+"_sampleList");
+      var list = document.getElementById(control+"_sampleList");
 
       // Create the list item and add it to the list
-      li = document.createElement("LI");
+      var li = document.createElement("LI");
       li.innerHTML = sample;
       list.appendChild(li)
 
@@ -117,14 +128,14 @@ function createNewSampleGroupHTML(control, remainingSamples) {
       }
 
       // Remove this option from all other sample groups
-      s = document.getElementById("sampleGroupSelect");
+      var s = document.getElementById("availableSamples");
       removeSampleByName(s, sample);
-      for (let s of sampleGroups) {
-        removeSampleByName(s, sample);
+      for (let sg of sampleGroups) {
+        removeSampleByName(sg, sample);
       }
     });
 
-    deleteSampleGroup = document.createElement("BUTTON");
+    var deleteSampleGroup = document.createElement("BUTTON");
     deleteSampleGroup.innerHTML = "Delete Sample Group";
     deleteSampleGroup.addEventListener("click", function(){
 	  // Remove the sample group from our in memory representation of the experiment
@@ -139,17 +150,17 @@ function createNewSampleGroupHTML(control, remainingSamples) {
 	  
 
           // Find all the samples added to this group so we can add them back
-          list = document.getElementById(control+"_sampleList");
+          var list = document.getElementById(control+"_sampleList");
           for (i = 0; i < list.childNodes.length; i++) {
-            sample = list.childNodes[i].innerHTML;
-            addSampleByName(document.getElementById("sampleGroupSelect"), sample);
+            var sample = list.childNodes[i].innerHTML;
+            addSampleByName(document.getElementById("availableSamples"), sample);
             for (let s of sampleGroups) {
               addSampleByName(s, sample);
             }
           }
 
           // Add the control sample back to everything
-          addSampleByName(document.getElementById("sampleGroupSelect"), control);
+          addSampleByName(document.getElementById("availableSamples"), control);
           for (let s of sampleGroups) {
             addSampleByName(s, control);
           }
@@ -158,7 +169,7 @@ function createNewSampleGroupHTML(control, remainingSamples) {
     });
 
     // Create the list representing what we have in the sample group
-    sampleList = document.createElement("UL");
+    var sampleList = document.createElement("UL");
     sampleList.setAttribute("id", control + "_sampleList");
 
     // Build up the div
@@ -170,14 +181,20 @@ function createNewSampleGroupHTML(control, remainingSamples) {
     d.appendChild(sampleList);
 
     // Add the sample group HTML to the DOM
-    contentContainer.appendChild(d);
+    var content = document.getElementById("content");
+    content.appendChild(d);
 
     // And add it to our in memory representation as well
     adjustedExperiment.push({"Control": control, "Samples": []});
 }
 
+// removeSampleByName removes the sample with the given name from the select options list
+// 
+// Parameters:
+//      s - select DOM object
+//      name - string
 function removeSampleByName(s, name) {
-  options = s.options;
+  var options = s.options;
 
   for (i = 0; i < options.length; i++) {
     if (options[i].value == name) {
@@ -187,30 +204,80 @@ function removeSampleByName(s, name) {
   }
 }
 
+// addSampleByName adds a sample as an option to the given select options list
+// 
+// Parameters:
+//      s - select DOM object
+//      name - string
 function addSampleByName(s, name) {
-  o = document.createElement("OPTION");
+  var o = document.createElement("OPTION");
   o.value = name;
   o.text = name;
 
   s.options.add(o);
 }
 
-function resetInterface() {
-  if (contentContainer.hasChildNodes()) {
-    while(contentContainer.childNodes.length > 1) {
-      contentContainer.removeChild(contentContainer.lastChild);
-    }
-  }
-
-  sampleGroups = [];
-}
 
 function submitExperiment() {
   // Ensure that all samples have been allocated
-  if (document.getElementById("sampleGroupSelect").options.length != 0) {
+  if (document.getElementById("availableSamples").options.length != 0) {
 	alert("You have to assign all samples first before submitting the experiment");
 	return;
   }
 
+  console.log("Preparing to Submit Experiment: " + experiment.name);
+  console.log(experiment);
   console.log(adjustedExperiment);
+
+  var submitData = {"name": experiment.name, "samples": []};
+
+  for (let sg of adjustedExperiment) {
+    var sgData = {
+      "control": {},
+      "experimental": []
+    };
+    
+    sgData.control = findSample(experiment.experiment, sg.Control);
+
+    for (let sample of sg.Samples) {
+      sgData.experimental.push(findSample(experiment.experiment, sample));
+    }
+
+    submitData.samples.push(sgData);
+  }
+
+  console.log(submitData);
+
+  var r = new XMLHttpRequest();
+
+  r.open("POST", "http://localhost:41586/generate", true);
+  r.setRequestHeader("Content-Type", "application/json");
+  r.onreadystatechange = function() {
+      if (r.readyState == XMLHttpRequest.DONE) {
+        if (r.status != 200) {
+          alert("Something Went Wrong: " + r.responseText);
+          return;
+        }
+        alert(r.responseText);
+      }
+  };
+  r.send(JSON.stringify(submitData));
+}
+
+// findSample looks through a list of JSON objects representing raw samples
+// 
+// The JSON looks like:
+//
+//  {
+//    name: "SampleName",
+//    data: [0, 1, 2]
+//  }
+function findSample(samples, name) {
+  for (let s of samples) {
+    if (s.name == name) {
+      return s;
+    }
+  }
+
+  return null;
 }
