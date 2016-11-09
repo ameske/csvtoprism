@@ -122,7 +122,7 @@ function createNewSampleGroupHTML(control, remainingSamples) {
 
       // Also add it to our in memory representation
       for(i = 0; i < adjustedExperiment.length; i++) {
-	 if (adjustedExperiment[i].Control = control) {
+	 if (adjustedExperiment[i].Control == control) {
 		adjustedExperiment[i].Samples.push(sample);
 	 }
       }
@@ -141,7 +141,7 @@ function createNewSampleGroupHTML(control, remainingSamples) {
 	  // Remove the sample group from our in memory representation of the experiment
 	  var removeIndex = -1;
 	  for(i = 0; i < adjustedExperiment.length; i++) {
-		if (adjustedExperiment[i].Control = control) {
+		if (adjustedExperiment[i].Control == control) {
 			removeIndex = -1;
 			break;
 		}

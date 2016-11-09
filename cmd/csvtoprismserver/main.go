@@ -25,6 +25,8 @@ type RawExperiment struct {
 
 // ImportFile accepts a raw XLS file and returns the representation of the data
 func ImportFile(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Access-Control-Allow-Origin", "*")
+
 	file, header, err := r.FormFile("xlsfile")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -71,6 +73,14 @@ func ImportFile(w http.ResponseWriter, r *http.Request) {
 // CSV takes in the JSON representation of an experiment and returns links
 // to the two resulting files
 func CreateCSV(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "OPTIONS" {
+		w.Header().Add("Access-Control-Allow-Methods", "GET, POST, PATCH, PUT, DELETE, OPTIONS")
+		w.Header().Add("Access-Control-Allow-Headers", "Origin, Content-Type, X-Auth-Token")
+		w.Header().Add("Access-Control-Allow-Origin", "*")
+	} else {
+		w.Header().Add("Access-Control-Allow-Origin", "*")
+	}
+
 	var exp csvtoprism.Experiment
 
 	err := json.NewDecoder(r.Body).Decode(&exp)

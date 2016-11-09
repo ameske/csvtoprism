@@ -12,6 +12,14 @@ import (
 	"github.com/tealeg/xlsx"
 )
 
+func round(num float64) int {
+	if num < 0.0 {
+		return int(num - 0.5)
+	}
+
+	return int(num + 0.5)
+}
+
 // A RawSample is a set of data points associated with some identifier
 type RawSample struct {
 	Name string `json:"name"`
@@ -68,7 +76,9 @@ type ControlledSample struct {
 func (c ControlledSample) Adjust() ControlledSample {
 	var adjusted ControlledSample
 
-	mean := (c.Control.Data[0] + c.Control.Data[1] + c.Control.Data[2]) / 3
+	fmean := float64(c.Control.Data[0]+c.Control.Data[1]+c.Control.Data[2]) / 3.0
+
+	mean := round(fmean)
 
 	adjusted.Control = c.Control.Adjust(mean)
 
